@@ -1,0 +1,18 @@
+# patina.futile.studio on Jinx, which already runs a system cloudflared in front
+# of a system Caddy. This file brings up the relay only; deploy/install.sh adds
+# the Caddy site block that puts the hostname in front of it.
+services:
+  patina:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: "4323"
+    volumes:
+      # The year lives here. Without this line a redeploy is a blank canvas.
+      - patina-data:/app/data
+    ports:
+      # Bound to loopback: the system Caddy is the only thing that should reach it.
+      - "127.0.0.1:4323:4323"
+
+volumes:
+  patina-data:

@@ -1,0 +1,12 @@
+http://patina.futile.studio {
+	encode zstd gzip
+
+	# No blanket Cache-Control here, unlike the static sites on this box: the
+	# relay already sends no-cache for HTML and immutable for the hashed assets.
+	# Overriding it would throw away the asset caching to fix a solved problem.
+	reverse_proxy localhost:4323 {
+		# One long-lived WebSocket carries the whole canvas and every placement.
+		# Buffered, live painting stops looking live.
+		flush_interval -1
+	}
+}

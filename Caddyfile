@@ -1,0 +1,15 @@
+# patina.futile.studio
+#
+# Caddy terminates TLS and reverse-proxies everything to the relay, including
+# the WebSocket, which it upgrades on its own.
+
+patina.futile.studio {
+	encode zstd gzip
+
+	reverse_proxy patina:4323 {
+		# The canvas arrives as one binary snapshot and then a stream of 12-byte
+		# deltas. Left buffered, a placed pixel shows up whenever something else
+		# happens to flush the connection.
+		flush_interval -1
+	}
+}

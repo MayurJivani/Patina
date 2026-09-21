@@ -1,0 +1,152 @@
+---
+import Layout from '../layouts/Layout.astro'
+import { PALETTE } from '../../shared/patina.js'
+
+const swatches = PALETTE.map((c, i) => ({ i, hex: `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}` }))
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+---
+
+<Layout title="Patina — a year-long canvas that ages">
+	<main>
+		<canvas id="stage"></canvas>
+
+		<!-- Top left: the name, and the one-line rule. -->
+		<header class="plate tl">
+			<h1>Patina</h1>
+			<p class="rule">Paint cures. Nothing is erased — it ages.</p>
+			<p class="tag" id="presence">connecting</p>
+		</header>
+
+		<!-- Top right: what the cell under the cursor has been through. -->
+		<aside class="plate tr" id="readout" hidden>
+			<div class="row"><span class="tag">cell</span><b id="r-cell">—</b></div>
+			<div class="row"><span class="tag">layers</span><b id="r-layers">—</b></div>
+			<div class="row"><span class="tag">cured</span><b id="r-cured">—</b></div>
+			<div class="row"><span class="tag">last touched</span><b id="r-age">—</b></div>
+			<div class="cure"><i id="r-bar"></i></div>
+		</aside>
+
+		<!-- The two readings of the same history. -->
+		<div class="plate modes">
+			<button class="mode is-on" data-mode="weathered">Weathered</button>
+			<button class="mode" data-mode="pristine">Pristine</button>
+			<p class="tag" id="mode-note">what time did to it</p>
+		</div>
+
+		<footer class="dock">
+			<div class="timeline">
+				<button id="play" class="play" aria-label="Play the year back">▶</button>
+				<div class="track" id="track" role="slider" tabindex="0" aria-label="Scrub the year"
+					aria-valuemin="0" aria-valuemax="365" aria-valuenow="0">
+					<div class="months">{MONTHS.map((m) => <span>{m}</span>)}</div>
+					<div class="painted" id="painted"></div>
+					<div class="head" id="head"><span class="stamp" id="stamp">day 0</span></div>
+				</div>
+				<button id="live" class="live is-on">LIVE</button>
+			</div>
+
+			<div class="palette" id="palette">
+				{swatches.map((s) => (
+					<button class="swatch" data-i={s.i} style={`--c:${s.hex}`} aria-label={`Colour ${s.i + 1}`}></button>
+				))}
+				<span class="cooldown tag" id="cooldown"></span>
+			</div>
+		</footer>
+	</main>
+</Layout>
+
+<script>
+	import '../scripts/client.js'
+</script>
+
+<style>
+	main { position: fixed; inset: 0; }
+
+	#stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
+
+	/* Every panel is the same drafting-table card: dark surface, hairline blue
+	   border, square corners. Nothing here rounds. */
+	.plate {
+		position: absolute;
+		background: color-mix(in srgb, var(--surface) 88%, transparent);
+		border: 1px solid var(--line-strong);
+		padding: 10px 14px;
+		backdrop-filter: blur(8px);
+		z-index: 2;
+	}
+
+	.tl { top: 16px; left: 16px; max-width: 280px; }
+	.tl h1 { font-size: 38px; line-height: 0.86; color: var(--white); }
+	.rule { margin: 6px 0 8px; color: var(--cyan-soft); font-size: 12px; }
+	#presence { color: var(--cyan); }
+
+	.tr { top: 16px; right: 16px; width: 208px; }
+	.row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+	.row b { font-weight: 500; font-size: 12px; }
+	.cure { height: 3px; background: var(--surface-lt); margin-top: 8px; }
+	.cure i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width 0.12s linear; }
+
+	.modes { top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; padding: 6px; }
+	.mode {
+		font-family: var(--display); font-size: 17px; text-transform: uppercase;
+		letter-spacing: 0.04em; padding: 3px 14px; color: var(--muted);
+		border: 1px solid transparent;
+	}
+	.mode.is-on { color: var(--bg); background: var(--cyan); }
+	#mode-note { flex-basis: 100%; text-align: center; margin: 3px 0 1px; }
+
+	.dock {
+		position: absolute; left: 16px; right: 16px; bottom: 16px;
+		display: flex; flex-direction: column; gap: 10px; z-index: 2;
+	}
+
+	.timeline {
+		display: flex; align-items: center; gap: 12px;
+		background: color-mix(in srgb, var(--surface) 88%, transparent);
+		border: 1px solid var(--line-strong); padding: 8px 12px; backdrop-filter: blur(8px);
+	}
+
+	.play, .live {
+		font-family: var(--display); font-size: 15px; letter-spacing: 0.08em;
+		border: 1px solid var(--line-strong); padding: 4px 10px; color: var(--muted); flex: none;
+	}
+	.play { min-width: 40px; }
+	.live.is-on { color: var(--bg); background: var(--red); border-color: var(--red); }
+
+	.track { position: relative; flex: 1; height: 34px; cursor: ew-resize; touch-action: none; }
+	/* The year, ticked into twelve. The labels are the scale, so no axis line. */
+	.months {
+		position: absolute; inset: 0; display: grid; grid-template-columns: repeat(12, 1fr);
+		border-left: 1px solid var(--line); pointer-events: none;
+	}
+	.months span {
+		border-right: 1px solid var(--line); font-size: 9px; letter-spacing: 0.12em;
+		color: var(--faint); padding: 2px 0 0 4px;
+	}
+	/* How much of the year has actually happened. */
+	.painted { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--line-strong); pointer-events: none; }
+	.head { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--cyan); pointer-events: none; }
+	.head::after { content: ''; position: absolute; top: -3px; left: -3px; width: 7px; height: 7px; background: var(--cyan); }
+	.stamp {
+		position: absolute; bottom: -2px; left: 6px; white-space: nowrap;
+		font-size: 10px; letter-spacing: 0.1em; color: var(--cyan);
+	}
+
+	.palette { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+	.swatch {
+		width: 30px; height: 30px; background: var(--c);
+		border: 1px solid rgba(0, 0, 0, 0.45); outline-offset: -3px;
+	}
+	.swatch.is-on { outline: 2px solid var(--white); }
+	.cooldown { margin-left: auto; color: var(--rust); }
+
+	@media (max-width: 760px) {
+		.tl { max-width: 44vw; padding: 7px 10px; }
+		.tl h1 { font-size: 26px; }
+		.rule { font-size: 10px; }
+		.tr { top: auto; bottom: 168px; right: 16px; width: 168px; }
+		.modes { top: 12px; right: 16px; left: auto; transform: none; }
+		.mode { font-size: 14px; padding: 2px 9px; }
+		.swatch { width: 26px; height: 26px; }
+	}
+</style>

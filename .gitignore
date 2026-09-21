@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.astro/
+
+# The canvas itself. A year of placements is state, not source — and the
+# fabricated dev year is 9 MB of it.
+data/
+
+.DS_Store
+*.tmp.mjs
