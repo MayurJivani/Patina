@@ -23,7 +23,7 @@ let state = blank()
 let at = 0            // the moment currently on screen, seconds since epoch
 let serverNow = 0     // how far into the year the canvas actually is
 let mode = 'weathered'
-let colour = 2
+let colour = 9   // cyan — index into PALETTE, which is grouped by family
 let scrubbing = false
 let playing = false
 // Whether the view is pinned to the present. Derived state ("at >= serverNow")
@@ -372,7 +372,7 @@ for (const s of document.querySelectorAll('.swatch')) {
 		for (const o of document.querySelectorAll('.swatch')) o.classList.toggle('is-on', o === s)
 	})
 }
-document.querySelector('.swatch[data-i="2"]').classList.add('is-on')
+document.querySelector(`.swatch[data-i="${colour}"]`).classList.add('is-on')
 
 // ─── the year ───────────────────────────────────────────────────────────────
 

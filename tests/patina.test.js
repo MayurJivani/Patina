@@ -6,7 +6,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
 	blank, place, display, take, hardness, at,
-	CURE_S, FADE_S, FADE_MAX, OXIDE_N, VOID, W, YEAR_S,
+	CURE_S, FADE_S, FADE_MAX, OXIDE_N, VOID, W, YEAR_S, PALETTE, PALETTE_NAMES,
 } from '../shared/patina.js'
 
 const RED = [0xff, 0x5b, 0x45]
@@ -101,6 +101,50 @@ test('untouched cells read as ground, not as faded paint', () => {
 	const s = blank()
 	assert.equal(at(s, 99, 99), -1, 'an unpainted cell has no slot at all')
 	assert.deepEqual(display(s, -1, YEAR_S), VOID)
+})
+
+test('the palette is well formed', () => {
+	// A `place` message carries a u8 index, so the palette can never outgrow 256
+	// — and the relay validates against this length, so a short NAMES array
+	// would ship swatches labelled "undefined" to a screen reader.
+	assert.ok(PALETTE.length <= 256, 'the index fits in the byte the wire allots it')
+	assert.equal(PALETTE_NAMES.length, PALETTE.length, 'every colour is named')
+	assert.equal(PALETTE.length % 8, 0, 'the dock lays out in families of eight')
+
+	const seen = new Set()
+	for (const [i, c] of PALETTE.entries()) {
+		assert.equal(c.length, 3, `${PALETTE_NAMES[i]} is a byte triple`)
+		assert.ok(c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255), `${PALETTE_NAMES[i]} is in range`)
+
+		const key = c.join(',')
+		assert.ok(!seen.has(key), `${PALETTE_NAMES[i]} is not a duplicate of an earlier swatch`)
+		seen.add(key)
+
+		// Exact duplicates are the easy case. The real waste is two swatches a
+		// painter cannot tell apart — Navy and Midnight once sat 11 apart and
+		// one of them was a dead slot. 25 is comfortably under the current
+		// worst pair (31) and well above where they stop being separate colours.
+		for (let j = 0; j < i; j++) {
+			const gap = dist(c, PALETTE[j])
+			assert.ok(gap >= 25,
+				`${PALETTE_NAMES[i]} and ${PALETTE_NAMES[j]} are ${gap.toFixed(0)} apart — too close to be two colours`)
+		}
+
+		// A colour that matches the board reads as an eraser, and this canvas
+		// has no eraser — that is the entire premise.
+		assert.ok(dist(c, VOID) > 6, `${PALETTE_NAMES[i]} is distinguishable from the board`)
+	}
+})
+
+test('every palette colour survives being placed on bare board', () => {
+	// Virgin cells take the colour whole, so a swatch that came back different
+	// would mean the mixing path had corrupted it.
+	const s = blank()
+	PALETTE.forEach((c, i) => place(s, i, 0, c, 1000))
+	PALETTE.forEach((c, i) => {
+		const o = at(s, i, 0) * 3
+		assert.deepEqual([s.base[o], s.base[o + 1], s.base[o + 2]], c, `${PALETTE_NAMES[i]} round-trips`)
+	})
 })
 
 test('empty canvas costs nothing, and slots are stable under repaint', () => {

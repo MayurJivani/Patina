@@ -50,7 +50,9 @@ for (let r = 0; r < ROWS; r++) {
 		const w = Math.round(DW / COLS) + OVERLAP
 		const h = Math.round(DH / ROWS) + OVERLAP
 		guilds.push({
-			colour: [2, 9, 13, 16, 22, 1][r * COLS + c],
+			// cyan, mint, yellow, red, violet, pale blue — indices into the
+			// family-grouped PALETTE, not the old flat one.
+			colour: [9, 17, 26, 32, 38, 8][r * COLS + c],
 			x: OX + Math.round((DW / COLS) * c) - (c ? OVERLAP : 0),
 			y: OY + Math.round((DH / ROWS) * r) - (r ? OVERLAP : 0),
 			w, h,
@@ -66,7 +68,7 @@ for (let r = 0; r < ROWS; r++) {
 
 // A mural painted in the first two months and then abandoned — the reference
 // for what four seasons of neglect does to untouched paint.
-const mural = { x: OX - 210, y: OY + 90, w: 170, h: 130 }
+const mural = { x: OX - 210, y: OY + 90, w: 170, h: 130, colour: 44 }  // bone
 
 const events = []
 
@@ -81,7 +83,9 @@ for (let i = 0; i < N; i++) {
 	if (roll < 0.08) {
 		// The abandoned mural, all of it inside the first sixth of the year.
 		const t = Math.random() * (YEAR_S / 6)
-		push(t, mural.x + irnd(0, mural.w), mural.y + irnd(0, mural.h), Math.random() < 0.18 ? 20 : 21)
+		// Mostly bone, flecked with sand, so the fade has some internal contrast
+		// to lose rather than being one flat tone going grey.
+		push(t, mural.x + irnd(0, mural.w), mural.y + irnd(0, mural.h), Math.random() < 0.18 ? 42 : mural.colour)
 		continue
 	}
 

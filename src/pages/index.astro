@@ -1,8 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro'
-import { PALETTE } from '../../shared/patina.js'
+import { PALETTE, PALETTE_NAMES } from '../../shared/patina.js'
 
-const swatches = PALETTE.map((c, i) => ({ i, hex: `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}` }))
+const swatches = PALETTE.map((c, i) => ({
+	i,
+	name: PALETTE_NAMES[i],
+	hex: `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`,
+}))
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 ---
 
@@ -45,10 +49,12 @@ const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', '
 				<button id="live" class="live is-on">LIVE</button>
 			</div>
 
-			<div class="palette" id="palette">
-				{swatches.map((s) => (
-					<button class="swatch" data-i={s.i} style={`--c:${s.hex}`} aria-label={`Colour ${s.i + 1}`}></button>
-				))}
+			<div class="palette">
+				<div class="swatches" id="palette" role="group" aria-label="Colour">
+					{swatches.map((s) => (
+						<button class="swatch" data-i={s.i} style={`--c:${s.hex}`} aria-label={`${s.name} (${s.hex})`}></button>
+					))}
+				</div>
 				<span class="cooldown tag" id="cooldown"></span>
 			</div>
 		</footer>
@@ -132,21 +138,29 @@ const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', '
 		font-size: 10px; letter-spacing: 0.1em; color: var(--cyan);
 	}
 
-	.palette { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+	/* Six families of eight. An auto-fit grid keeps the families on their own
+	   rows at full width and reflows to whatever fits when there isn't room,
+	   rather than orphaning two swatches onto a line of their own. */
+	.palette { display: flex; gap: 10px; align-items: center; }
+	.swatches {
+		display: grid; gap: 3px; flex: 1;
+		grid-template-columns: repeat(auto-fit, minmax(26px, 1fr));
+		max-width: calc(48 * 29px);
+	}
 	.swatch {
-		width: 30px; height: 30px; background: var(--c);
+		aspect-ratio: 1; min-width: 0; background: var(--c);
 		border: 1px solid rgba(0, 0, 0, 0.45); outline-offset: -3px;
 	}
-	.swatch.is-on { outline: 2px solid var(--white); }
-	.cooldown { margin-left: auto; color: var(--rust); }
+	.swatch.is-on { outline: 2px solid var(--white); z-index: 1; }
+	.cooldown { flex: none; color: var(--rust); }
 
 	@media (max-width: 760px) {
 		.tl { max-width: 44vw; padding: 7px 10px; }
 		.tl h1 { font-size: 26px; }
 		.rule { font-size: 10px; }
-		.tr { top: auto; bottom: 168px; right: 16px; width: 168px; }
+		.tr { top: auto; bottom: 190px; right: 16px; width: 168px; }
 		.modes { top: 12px; right: 16px; left: auto; transform: none; }
 		.mode { font-size: 14px; padding: 2px 9px; }
-		.swatch { width: 26px; height: 26px; }
+		.swatches { grid-template-columns: repeat(auto-fit, minmax(20px, 1fr)); gap: 2px; }
 	}
 </style>

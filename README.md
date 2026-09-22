@@ -66,6 +66,17 @@ frames, keeps the last placement per cell per bucket, and ships that; the page
 folds it with the same code the relay folds its log with. A year is a few hundred
 KB and it replays in both modes from one request.
 
+## The paint box
+
+48 colours in six families of eight: a neutral ramp, the studio blues, greens,
+yellows through oranges, reds and violets, and the earths the oxidation pulls
+everything toward. No eraser — `npm test` asserts every swatch sits at least 25
+apart in RGB from every other one and from the board itself, so there are no
+dead slots and no way to paint something invisible.
+
+The log stores RGB rather than a palette index, so the palette can grow or be
+reordered without reinterpreting a placement that already happened.
+
 ## Controls
 
 | | |
