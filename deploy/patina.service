@@ -1,0 +1,22 @@
+[Unit]
+Description=patina (collaborative pixel canvas)
+After=network-online.target
+
+[Service]
+User=icarusfalls
+WorkingDirectory=/opt/apps/Patina
+# Optional overrides only; nothing here is secret.
+EnvironmentFile=-/etc/apps/patina.env
+Environment=NODE_ENV=production PORT=4323
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+MemoryMax=384M
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
