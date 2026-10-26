@@ -17,7 +17,7 @@
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
-    "astro": "^6.1.5",
+    "astro": "^7.3.8",
     "ws": "^8.20.0"
   },
   "description": "A year-long shared canvas where nothing is erased and everything ages."

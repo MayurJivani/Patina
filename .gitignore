@@ -8,3 +8,10 @@ data/
 
 .DS_Store
 *.tmp.mjs
+
+# Claude Code and local tooling
+.env
+.claude
+.impeccable
+.codegraph
+.mcp.json
