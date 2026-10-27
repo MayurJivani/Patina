@@ -3,20 +3,46 @@ Description=patina (collaborative pixel canvas)
 After=network-online.target
 
 [Service]
-User=icarusfalls
 WorkingDirectory=/opt/apps/Patina
 # Optional overrides only; nothing here is secret.
 EnvironmentFile=-/etc/apps/patina.env
-Environment=NODE_ENV=production PORT=4323
+Environment=NODE_ENV=production PORT=4323 PATINA_DATA=/var/lib/patina
 ExecStart=/usr/bin/node server/index.js
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=15
-MemoryMax=384M
-NoNewPrivileges=yes
-ProtectSystem=full
+MemoryMax=512M
+StateDirectory=patina
+# --- least privilege: a throwaway user per start, no capabilities, read-only code ---
+DynamicUser=yes
+ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
+PrivateDevices=yes
+PrivateIPC=yes
+NoNewPrivileges=yes
+ProtectProc=invisible
+ProcSubset=pid
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+# A blocked call fails with EPERM instead of killing the process.
+SystemCallErrorNumber=EPERM
+UMask=0077
+# No MemoryDenyWriteExecute: V8's JIT needs writable+executable pages.
 
 [Install]
 WantedBy=multi-user.target

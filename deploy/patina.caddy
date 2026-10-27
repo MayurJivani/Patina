@@ -1,5 +1,5 @@
 http://patina.futile.studio {
-	encode zstd gzip
+	import common
 
 	# No blanket Cache-Control here, unlike the static sites on this box: the
 	# relay already sends no-cache for HTML and immutable for the hashed assets.
