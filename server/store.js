@@ -190,7 +190,7 @@ export class Store {
 	 * about every cell the cursor crosses.
 	 *
 	 * ponytail: this is the whole canvas in one message. Fine to a few hundred
-	 * thousand painted cells (a few MB, and the socket deflates it); past about
+	 * thousand painted cells (a few MB, gzipped once for every socket); past about
 	 * a million, cut it into 256² tiles and send only the viewport's.
 	 */
 	snapshot(state, at, op = 0x01) {

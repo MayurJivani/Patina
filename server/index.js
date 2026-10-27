@@ -7,6 +7,7 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import zlib from 'node:zlib'
 import { WebSocketServer } from 'ws'
 import { Store, MONTHS, MONTH_S } from './store.js'
 import { PALETTE, COOLDOWN_S, YEAR_S, inBounds } from '../shared/patina.js'
@@ -51,16 +52,48 @@ const server = http.createServer((req, res) => {
 	return serveStatic(url.pathname, res)
 })
 
-const wss = new WebSocketServer({ server, path: '/ws', perMessageDeflate: true })
+// No per-message deflate: it compressed the multi-MB canvas once per socket,
+// so a thousand arrivals cost minutes of CPU and a zlib context each. The
+// canvas is gzipped once instead (see `freshCanvas`); the rest is tiny.
+const wss = new WebSocketServer({ server, path: '/ws', perMessageDeflate: false })
 
 /** ip → unix seconds the next placement is allowed. */
 const cooldowns = new Map()
+
+/**
+ * The live canvas, gzipped once and shared by every arrival, plus each delta
+ * since it was taken, so a new socket gets the canvas and then catches up.
+ * Rebuilt when the catch-up list gets long, never while sockets still wait.
+ */
+let canvas = null
+function freshCanvas() {
+	if (canvas && (!canvas.gz || canvas.since.length < 1000)) return canvas
+	const c = { gz: null, since: [], waiting: [] }
+	const raw = store.snapshot(store.live, store.now(), 0x01)
+	// Off the event loop. The client takes either form: gzip starts 0x1f, raw 0x01.
+	zlib.gzip(raw, { level: 6 }, (err, gz) => {
+		c.gz = err ? raw : gz
+		for (const ws of c.waiting) sendCanvas(ws, c)
+		c.waiting = null
+	})
+	return (canvas = c)
+}
+
+function sendCanvas(ws, c) {
+	if (ws.readyState !== 1) return
+	ws.send(c.gz)
+	for (const d of c.since) ws.send(d)
+	// Live deltas and presence only from here on, or they would land before the canvas.
+	ws.ready = true
+}
 
 wss.on('connection', (ws, req) => {
 	ws.binaryType = 'nodebuffer'
 	ws.ip = (req.headers['x-forwarded-for']?.split(',')[0] ?? req.socket.remoteAddress ?? '?').trim()
 
-	ws.send(store.snapshot(store.live, store.now(), 0x01))
+	const c = freshCanvas()
+	if (c.gz) sendCanvas(ws, c)
+	else c.waiting.push(ws)
 	broadcastPresence()
 
 	ws.on('message', (data) => {
@@ -91,7 +124,8 @@ wss.on('connection', (ws, req) => {
 		delta.writeUInt16LE(x, 5)
 		delta.writeUInt16LE(y, 7)
 		delta[9] = PALETTE[idx][0]; delta[10] = PALETTE[idx][1]; delta[11] = PALETTE[idx][2]
-		for (const peer of wss.clients) if (peer.readyState === 1) peer.send(delta)
+		canvas?.since.push(delta)
+		for (const peer of wss.clients) if (peer.ready && peer.readyState === 1) peer.send(delta)
 	})
 
 	ws.on('close', broadcastPresence)
@@ -106,11 +140,17 @@ function sendCooldown(ws, seconds) {
 	ws.send(b)
 }
 
+// At most once a second: a count pushed on every arrival is N squared sends
+// when a link goes round and a thousand people open it at once.
+let presenceTimer = null
 function broadcastPresence() {
-	const b = Buffer.alloc(3)
-	b[0] = 0x06
-	b.writeUInt16LE(Math.min(wss.clients.size, 0xffff), 1)
-	for (const peer of wss.clients) if (peer.readyState === 1) peer.send(b)
+	presenceTimer ??= setTimeout(() => {
+		presenceTimer = null
+		const b = Buffer.alloc(3)
+		b[0] = 0x06
+		b.writeUInt16LE(Math.min(wss.clients.size, 0xffff), 1)
+		for (const peer of wss.clients) if (peer.ready && peer.readyState === 1) peer.send(b)
+	}, 1000)
 }
 
 // A socket that dies without a FIN leaves a client in the presence count for

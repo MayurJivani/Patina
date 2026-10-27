@@ -154,57 +154,63 @@ function connect() {
 
 	ws.onopen = () => { backoff = 500 }
 
-	ws.onmessage = (ev) => {
-		const buf = ev.data
-		const view8 = new Uint8Array(buf)
-		const dv = new DataView(buf)
-
-		switch (view8[0]) {
-			case 0x01: { // full canvas
-				const s = decode(buf)
-				serverNow = s.now
-				state = s.state
-				if (following) at = serverNow
-				if (!framed) { framed = true; frameContent(state) }
-				$('painted').style.width = `${(serverNow / YEAR_S) * 100}%`
-				syncHead()
-				draw()
-				break
-			}
-			case 0x03: { // one placement
-				const t = dv.getUint32(1, true)
-				const x = dv.getUint16(5, true)
-				const y = dv.getUint16(7, true)
-				serverNow = Math.max(serverNow, t)
-				// Only the live view moves. If you are looking at March, someone
-				// painting now must not reach in and change what March looked like.
-				if (live() && !playing) {
-					place(state, x, y, [view8[9], view8[10], view8[11]], t)
-					at = serverNow
-					// One cell changed and the clock moved a second; re-baking
-					// the whole canvas for that would stall a busy board.
-					bake(state, at, [slotAt(state, x, y)])
-					draw()
-				}
-				break
-			}
-			case 0x05: // cooldown, in seconds remaining
-				cooldownUntil = performance.now() + dv.getUint32(1, true) * 1000
-				break
-			case 0x06: { // how many people are here
-				const n = dv.getUint16(1, true)
-				$('presence').textContent = `${n} ${n === 1 ? 'painter' : 'painters'} · day ${Math.floor(serverNow / 86400)} of 365`
-				break
-			}
-		}
-	}
+	// In order, one at a time: the canvas arrives gzipped and the deltas
+	// behind it must wait for it to unpack.
+	let inbox = Promise.resolve()
+	ws.onmessage = (ev) => { inbox = inbox.then(() => receive(ev.data)).catch(console.error) }
 
 	ws.onclose = () => {
 		$('presence').textContent = 'reconnecting'
 		// Backing off to 8s rather than hammering: a relay restart brings a few
-		// hundred sockets back at once and they all send a 196 KB snapshot.
+		// hundred sockets back at once and they all want the canvas.
 		setTimeout(connect, backoff)
 		backoff = Math.min(backoff * 2, 8000)
+	}
+}
+
+async function receive(buf) {
+	const view8 = new Uint8Array(buf)
+	const dv = new DataView(buf)
+
+	switch (view8[0]) {
+		case 0x1f: // the full canvas, gzipped (0x1f is gzip's first byte)
+			return receive(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer())
+		case 0x01: { // full canvas
+			const s = decode(buf)
+			serverNow = s.now
+			state = s.state
+			if (following) at = serverNow
+			if (!framed) { framed = true; frameContent(state) }
+			$('painted').style.width = `${(serverNow / YEAR_S) * 100}%`
+			syncHead()
+			draw()
+			break
+		}
+		case 0x03: { // one placement
+			const t = dv.getUint32(1, true)
+			const x = dv.getUint16(5, true)
+			const y = dv.getUint16(7, true)
+			serverNow = Math.max(serverNow, t)
+			// Only the live view moves. If you are looking at March, someone
+			// painting now must not reach in and change what March looked like.
+			if (live() && !playing) {
+				place(state, x, y, [view8[9], view8[10], view8[11]], t)
+				at = serverNow
+				// One cell changed and the clock moved a second; re-baking
+				// the whole canvas for that would stall a busy board.
+				bake(state, at, [slotAt(state, x, y)])
+				draw()
+			}
+			break
+		}
+		case 0x05: // cooldown, in seconds remaining
+			cooldownUntil = performance.now() + dv.getUint32(1, true) * 1000
+			break
+		case 0x06: { // how many people are here
+			const n = dv.getUint16(1, true)
+			$('presence').textContent = `${n} ${n === 1 ? 'painter' : 'painters'} · day ${Math.floor(serverNow / 86400)} of 365`
+			break
+		}
 	}
 }
 
