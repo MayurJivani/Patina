@@ -46,3 +46,22 @@ test('a spoofed X-Forwarded-For does not buy a second placement', async (t) => {
 	watcher.close()
 	assert.equal(deltas.length, 1, 'only the first placement reached the canvas')
 })
+
+test('the expensive reel is limited per visitor, not shared by everyone', async (t) => {
+	const data = fs.mkdtempSync(path.join(os.tmpdir(), 'patina-reel-'))
+	const relay = spawn(process.execPath, ['server/index.js'], {
+		env: { ...process.env, PORT: String(PORT + 1), PATINA_DATA: data },
+		stdio: 'ignore',
+	})
+	t.after(() => { relay.kill(); fs.rmSync(data, { recursive: true, force: true }) })
+	const base = `http://127.0.0.1:${PORT + 1}`
+	for (let i = 0; i < 50; i++) {
+		if (await fetch(`${base}/health`).then(() => true, () => false)) break
+		await new Promise((r) => setTimeout(r, 100))
+	}
+	const reel = (ip) => fetch(`${base}/reel?frames=2`, { headers: { 'cf-connecting-ip': ip } }).then((r) => r.status)
+
+	for (let i = 0; i < 10; i++) assert.equal(await reel('203.0.113.9'), 200)
+	assert.equal(await reel('203.0.113.9'), 429, 'the eleventh reel in a minute is refused')
+	assert.equal(await reel('203.0.113.10'), 200, 'another visitor keeps their own budget')
+})

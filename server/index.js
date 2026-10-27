@@ -27,6 +27,20 @@ const TYPES = {
 	'.woff2': 'font/woff2', '.json': 'application/json; charset=utf-8',
 }
 
+// A reel folds the whole year into up to 600 frames, so it is the one expensive
+// request: 10 a minute per visitor is plenty for scrubbing and stops a loop.
+const REEL_PER_MIN = 10
+const reelHits = new Map()
+export function reelAllowed(ip, now = Date.now()) {
+	const hit = reelHits.get(ip)
+	if (!hit || now - hit.since >= 60_000) {
+		if (reelHits.size > 10_000) reelHits.clear() // shortcut: drops every window at once, fine at this traffic
+		reelHits.set(ip, { since: now, n: 1 })
+		return true
+	}
+	return ++hit.n <= REEL_PER_MIN
+}
+
 const server = http.createServer((req, res) => {
 	const url = new URL(req.url, 'http://x')
 
@@ -43,6 +57,7 @@ const server = http.createServer((req, res) => {
 	// The year as playable frames. The frame count is capped because each one
 	// costs a bucket of Map allocations server-side.
 	if (url.pathname === '/reel') {
+		if (!reelAllowed(clientIp(req))) return send(res, 429, 'text/plain', 'slow down')
 		const from = clampTime(Number(url.searchParams.get('from') ?? 0))
 		const to = Math.max(from + 1, clampTime(Number(url.searchParams.get('to') ?? store.now())))
 		const frames = Math.max(2, Math.min(600, Number(url.searchParams.get('frames')) || 240))
