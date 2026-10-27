@@ -55,7 +55,20 @@ const server = http.createServer((req, res) => {
 // No per-message deflate: it compressed the multi-MB canvas once per socket,
 // so a thousand arrivals cost minutes of CPU and a zlib context each. The
 // canvas is gzipped once instead (see `freshCanvas`); the rest is tiny.
-const wss = new WebSocketServer({ server, path: '/ws', perMessageDeflate: false })
+// maxPayload: a placement is six bytes; the default would buffer 100 MiB.
+const wss = new WebSocketServer({ server, path: '/ws', perMessageDeflate: false, maxPayload: 1024 })
+
+/**
+ * Who is placing, for the cooldown. Not the first X-Forwarded-For entry: the
+ * client writes that one itself, so it handed out a fresh cooldown per request
+ * and an unlimited brush on a log that can never be cleaned. Cloudflare sets
+ * CF-Connecting-IP and overwrites any copy the client sent; without it (dev,
+ * LAN) the socket address is the truth.
+ */
+export function clientIp(req) {
+	const cf = String(req.headers['cf-connecting-ip'] ?? '').trim()
+	return cf || req.socket.remoteAddress || '?'
+}
 
 /** ip → unix seconds the next placement is allowed. */
 const cooldowns = new Map()
@@ -89,7 +102,7 @@ function sendCanvas(ws, c) {
 
 wss.on('connection', (ws, req) => {
 	ws.binaryType = 'nodebuffer'
-	ws.ip = (req.headers['x-forwarded-for']?.split(',')[0] ?? req.socket.remoteAddress ?? '?').trim()
+	ws.ip = clientIp(req)
 
 	const c = freshCanvas()
 	if (c.gz) sendCanvas(ws, c)
@@ -156,6 +169,9 @@ function broadcastPresence() {
 // A socket that dies without a FIN leaves a client in the presence count for
 // good. Ping every 30s and drop anything that missed the last one.
 setInterval(() => {
+	// Spent cooldowns would otherwise keep one entry per visitor for the whole year.
+	const wall = Math.floor(Date.now() / 1000)
+	for (const [ip, readyAt] of cooldowns) if (readyAt <= wall) cooldowns.delete(ip)
 	for (const ws of wss.clients) {
 		if (ws.alive === false) { ws.terminate(); continue }
 		ws.alive = false
@@ -181,7 +197,7 @@ function serveStatic(pathname, res) {
 	const file = path.join(DIST, rel)
 	// Resolve first, then check the prefix — `/../` in a request must not walk
 	// out of dist/.
-	if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+	if (!file.startsWith(DIST + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
 		const index = path.join(DIST, 'index.html')
 		if (!fs.existsSync(index)) return send(res, 404, 'text/plain', 'not built — run npm run build')
 		return sendHtml(res, index)
