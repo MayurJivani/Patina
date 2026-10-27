@@ -116,6 +116,8 @@ function sendCanvas(ws, c) {
 }
 
 wss.on('connection', (ws, req) => {
+	// ws reports an oversized or malformed frame as an 'error' event and closes the socket itself; unheard, that event crashes the process.
+	ws.on('error', () => {})
 	ws.binaryType = 'nodebuffer'
 	ws.ip = clientIp(req)
 

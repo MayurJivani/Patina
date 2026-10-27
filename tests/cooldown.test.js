@@ -65,3 +65,21 @@ test('the expensive reel is limited per visitor, not shared by everyone', async 
 	assert.equal(await reel('203.0.113.9'), 429, 'the eleventh reel in a minute is refused')
 	assert.equal(await reel('203.0.113.10'), 200, 'another visitor keeps their own budget')
 })
+
+test('an oversized socket frame closes that socket, not the server', async (t) => {
+	const data = fs.mkdtempSync(path.join(os.tmpdir(), 'patina-big-'))
+	const relay = spawn(process.execPath, ['server/index.js'], {
+		env: { ...process.env, PORT: String(PORT + 2), PATINA_DATA: data },
+		stdio: 'ignore',
+	})
+	t.after(() => { relay.kill(); fs.rmSync(data, { recursive: true, force: true }) })
+	const base = `http://127.0.0.1:${PORT + 2}`
+	for (let i = 0; i < 50; i++) {
+		if (await fetch(`${base}/health`).then(() => true, () => false)) break
+		await new Promise((r) => setTimeout(r, 100))
+	}
+	const ws = new WebSocket(`ws://127.0.0.1:${PORT + 2}/ws`)
+	ws.on('error', () => {})
+	await new Promise((r) => { ws.on('open', () => ws.send(Buffer.alloc(2_000_000))); ws.on('close', r) })
+	assert.equal((await fetch(`${base}/health`)).status, 200)
+})
