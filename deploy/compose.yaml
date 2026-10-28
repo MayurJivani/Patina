@@ -1,0 +1,24 @@
+# Coolify on Jinx (FRC/DEPLOY.md). Host network: the app listens on 4323 like
+# its old systemd unit did, so its Caddy block, Postgres URL and env file are unchanged.
+services:
+  patina:
+    image: ghcr.io/mayurjivani/patina:latest
+    network_mode: host
+    restart: unless-stopped
+    user: "1000:1000"
+    command: ["node", "server/index.js"]
+    env_file:
+      - path: /etc/apps/patina.env
+        required: false
+    environment:
+      NODE_ENV: "production"
+      PORT: "4323"
+      PATINA_DATA: "/data"
+    volumes:
+      - /var/lib/patina:/data
+    mem_limit: 512m
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
