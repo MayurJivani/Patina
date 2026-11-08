@@ -1,36 +1,21 @@
 #!/bin/sh
-# Ship Patina to Jinx. The box keeps its own checkout at /opt/apps/Patina, so
-# the unit of deployment is a fast-forward of that checkout, a rebuild in
-# place and a restart of the `patina` systemd unit. The code is not copied
-# from here, which is what makes a deploy from CI and a deploy from a laptop
-# the same operation; only deploy/patina.service and deploy/patina.caddy go
-# over from this tree.
-#
-# --ff-only rather than a plain pull: if the checkout on the box has drifted,
-# stop and say so rather than quietly merging something nobody wrote.
-#
-# Re-runnable, and the first run on an empty box sets everything up: the
-# clone, the unit, the site block. Dev dependencies are pruned once the build
-# is done. The public hostname is a Cloudflare dashboard step: Zero Trust >
-# Tunnels > Public Hostname, patina.futile.studio -> http://localhost:80.
+# Box side of Patina on Jinx: the state directory and the site block.
+# The app itself runs under Coolify (deploy/compose.yaml, image from GHCR), so
+# nothing is built or restarted here (FRC/DEPLOY.md). Re-runnable; on a rebuild
+# jinx/restore-all.sh runs it before the app is started in Coolify.
 set -eu
 cd "$(dirname "$0")/.."
 HOST=${HOST:-ssh.futile.studio}
 NAME=patina
-SITE=patina.futile.studio
 
-scp -q deploy/patina.caddy deploy/$NAME.service "$HOST":/tmp/
-ssh "$HOST" "NAME=$NAME SITE=$SITE sh -s" <<'BOX'
+scp -q deploy/$NAME.caddy "$HOST":/tmp/
+ssh "$HOST" "NAME=$NAME sh -s" <<'BOX'
 set -eu
-if ! cmp -s "/tmp/$NAME.service" "/etc/systemd/system/$NAME.service"; then
-  sudo -n install -m 644 "/tmp/$NAME.service" "/etc/systemd/system/$NAME.service"
-  sudo -n systemctl daemon-reload
-  sudo -n systemctl enable -q "$NAME"
-fi
-rm -f "/tmp/$NAME.service"
+# Mounted by the container, which runs as node (1000); 0700 like the old unit's.
+sudo -n install -d -m 700 /var/lib/patina && sudo -n chown -R 1000:1000 /var/lib/patina
 
-LIVE=/etc/caddy/conf.d/patina.caddy
-IN=/tmp/patina.caddy
+LIVE=/etc/caddy/conf.d/$NAME.caddy
+IN=/tmp/$NAME.caddy
 if cmp -s "$IN" "$LIVE"; then
   rm -f "$IN"
 else
@@ -45,24 +30,5 @@ else
   sudo -n rm -f "$IN.prev"
   sudo -n systemctl reload caddy
 fi
-
-[ -d /opt/apps/Patina/.git ] || git clone -q https://github.com/MayurJivani/Patina.git /opt/apps/Patina
-cd /opt/apps/Patina
-git pull -q --ff-only
-HUSKY=0 npm ci --no-audit --no-fund --loglevel=error
-npm run build
-npm prune --omit=dev
-# The box npm may rewrite the lockfile in its own dialect; put it back so the next pull fast-forwards.
-git checkout -- package-lock.json
-sudo -n systemctl restart "$NAME"
-
-# Come back and check through Caddy, rather than trusting that a restart meant "serving".
-for _ in $(seq 1 30); do
-  curl -sf -o /dev/null -H "Host: $SITE" http://127.0.0.1/health && break
-  sleep 1
-done
-curl -sf -o /dev/null -H "Host: $SITE" http://127.0.0.1/health || {
-  echo "$NAME: not serving through Caddy"; sudo -n journalctl -u "$NAME" -n 30 --no-pager; exit 1
-}
 BOX
-echo "$NAME: deployed to https://$SITE"
+echo "$NAME: box side in place; deploy it from Coolify"
