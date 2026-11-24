@@ -15,7 +15,7 @@
 
 </div>
 
-> **Futile Lab** · experiment, canvas · live since Sep 2026
+> **Futile Studio** · experiment, canvas · live since Sep 2026
 
 ## Overview
 
@@ -137,4 +137,8 @@ No licence file yet, all rights reserved.
 
 ---
 
-<p align="center"><sub>Built by <a href="https://github.com/MayurJivani">Mayur Jivani</a> at <a href="https://futile.studio">Futile Studio</a>. Everything is futile. Do it anyway.</sub></p>
+<p align="center">
+  <a href="https://futile.studio"><img src="https://raw.githubusercontent.com/MayurJivani/MayurJivani/main/assets/futile-studio.png" alt="futile.studio" width="180"></a>
+  <br>
+  <sub>Built by <a href="https://github.com/MayurJivani">Mayur Jivani</a>. Everything is futile. Do it anyway.</sub>
+</p>
